@@ -7,10 +7,10 @@ cols_display = ["Datum",
                 "Achternaam",
                 "Geboortedatum patiënt",
                 "Tariefcode:",
+                "Omschrijving", 
                 "Patiëntgegevens", 
                 "VolgNummer", 
                 "Dossiernummer",
-                "Omschrijving", 
                 "Uitgevoerd door"
                ]
 
