@@ -81,6 +81,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.sidebar.image("imgs/logo_valident.png")
+st.sidebar.write("")
+st.sidebar.write("")
 my_upload = st.sidebar.file_uploader("", type=["xlsx"])
 
 if my_upload is not None:
@@ -101,5 +103,8 @@ if my_upload is not None:
         st.write(display_format(find_errors_g72(df))) 
 else:
     st.markdown("#### Welkom bij Valident!")
-    st.markdown("Upload een Excel-bestand via de linkerzijbalk om alle ongeldige declaraties te vinden.")
-    st.markdown("Na het uploaden worden de gegevens gecontroleerd en krijg je een overzicht van de foutieve codecombinaties..")
+    st.markdown("Upload een Excel-bestand via de linkerzijbalk om alle \
+                ongeldige declaraties te vinden.")
+    st.markdown("Na het uploaden worden de gegevens gecontroleerd en \
+                 krijg je een overzicht van de foutieve codecombinaties..")
+    st.image("imgs/pijl.png", width=150)
