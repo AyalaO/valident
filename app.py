@@ -1,77 +1,52 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 
-st.set_page_config(layout="wide", page_title="Valident")
+from parse_data import (
+                    parse_voorlooprecord, 
+                    parse_verzekerdenrecord, 
+                    parse_prestatierecord, 
+                    parse_commentaarrecord, 
+                    parse_sluitrecord, 
+                    check_parsing
+)
+from clean_data import (
+                    merge_data,
+                    clean_data
+)
 
-cols_display = ["Datum",
-                "Achternaam",
-                "Geboortedatum patiënt",
-                "Tariefcode:",
-                "Omschrijving", 
-                "Patiëntgegevens", 
-                "VolgNummer", 
-                "Dossiernummer",
-                "Uitgevoerd door"
-               ]
+def display(df):
+    """
+    Formats the dataframe to display cleanly
+    Returns df to be displayed in app
+    """
+    display_cols = ['BSN',
+                    'Geboortedatum',
+                    'Achternaam',
+                    'Voorletters',
+                    'Datum prestatie',
+                    'Prestatiecode',
+                    'Gebitselementcode',
+                    'Tarief prestatie',
+                    'Aantal',
+                    'Declaratiebedrag',
+                    'Verzekering',
+                    'Machtigingsnummer'
+                    ]
 
-def display_format(df):
-    df_formatted = df[cols_display].sort_values(by=["Datum", "Achternaam"]).reset_index(drop=True)
-    for col in df_formatted.select_dtypes(include=['datetime64[ns]']):
-        df_formatted[col] = df_formatted[col].dt.strftime('%d-%m-%Y')
-    return df_formatted
+    df_display = (df[display_cols]
+                    .sort_values(by=["Datum prestatie", "Achternaam"], ascending=[True, True])
+                    .reset_index(drop=True))
 
-def read_data(file):
-    df = pd.read_excel(file)
-    return df
-
-def find_errors_x21_age(df):
-    today = pd.Timestamp.today()
-    df['Age'] = df['Geboortedatum patiënt'].apply(lambda dob: (today - dob).days // 365 if pd.notnull(dob) else None)
-    condition = df['Tariefcode:'].astype(str).str.contains("X21") & (df['Age'] < 18)
-    return df[condition][cols_display]
-
-def find_errors_c_t(df):
-    # Step 1: Check if 'J' contains "C" or "T"
-    condition_part1 = df['Tariefcode:'].astype(str).str.contains("C", na=False) | \
-                        df['Tariefcode:'].astype(str).str.contains("T", na=False)
-    # Step 2: Create boolean masks and compute counts per group [Achternaam, Datum]
-    mask_C = df['Tariefcode:'].astype(str).str.contains("C", na=False)
-    mask_T = df['Tariefcode:'].astype(str).str.contains("T", na=False)
-    df['count_C_T'] = df.groupby(['Achternaam', 'Datum'])['Tariefcode:'].transform(
-        lambda x: x.astype(str).str.contains("C", na=False).sum() + 
-                x.astype(str).str.contains("T", na=False).sum()
-    )
-    # Step 3: Check if the count is greater than 1
-    count_condition = df['count_C_T'] > 1
-    # Step 4: Combine conditions
-    final_condition = condition_part1 & count_condition
-    # Step 5: Filter rows based on the condition
-    return df[final_condition]
-
-def find_errors_a10_h(df):
-    # Create masks for rows where column J contains "A10" or "H"
-    mask_A10 = df['Tariefcode:'].str.contains("A10", na=False)
-    mask_H = df['Tariefcode:'].str.contains("H", na=False)
-    # For each row, within the same group defined by columns 'A' and 'F',
-    # count how many rows have "H" in column J
-    count_H = df.groupby(['Achternaam', 'Datum'])['Tariefcode:'].transform(
-        lambda x: x.str.contains("H", na=False).sum()
-    )
-    # Similarly, count how many rows in the same group have "A10" in column J
-    count_A10 = df.groupby(['Achternaam', 'Datum'])['Tariefcode:'].transform(
-        lambda x: x.str.contains("A10", na=False).sum()
-    )
-    # Replicate the Excel logic:
-    condition = (mask_A10 & (count_H > 0)) | (mask_H & (count_A10 > 0))
-    # Step 5: Filter rows based on the condition
-    return df[condition]
-
-def find_errors_g72(df):
-    condition = df['Tariefcode:'] == 'G72'
-    return df[condition]
+    for col in df_display.columns:
+        # Check if the column's dtype is datetime
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            # Convert the datetime to a string in the format dd-mm-YYYY
+            df_display[col] = df_display[col].dt.strftime('%d-%m-%Y')
     
+    return df_display
 
-# set-up sidebar layout 
+# set-up sidebar 
 st.markdown("""
 <style>
     [data-testid=stSidebar] {
@@ -83,28 +58,60 @@ st.markdown("""
 st.sidebar.image("imgs/logo_valident.png")
 st.sidebar.write("")
 st.sidebar.write("")
-my_upload = st.sidebar.file_uploader("", type=["xlsx"])
+my_upload = st.sidebar.file_uploader("")
 
+
+# set-up main page
 if my_upload is not None:
-    # read and parse data
-    df = read_data(my_upload)
+    # read data
+    string_data = my_upload.getvalue().decode("ISO-8859-1")  # decode bytes to string
+    lines = string_data.splitlines()
 
-    # set-up main page
+    # parse data line by line per record type
+    voorlooprecord = [parse_voorlooprecord(ln) for ln in lines if ln[0:2] == "01"]
+    verzekerdenrecord = [parse_verzekerdenrecord(ln) for ln in lines if ln[0:2] == "02"]
+    prestatierecord = [parse_prestatierecord(ln) for ln in lines if ln[0:2] == "04"]
+    commentaarrecord = [parse_commentaarrecord(ln) for ln in lines if ln[0:2] == "98"]
+    sluitrecord = [parse_sluitrecord(ln) for ln in lines if ln[0:2] == "99"]
+
+    # convert to clean dfs
+    df_voorlooprecord = pd.DataFrame(voorlooprecord)
+    df_verzekerdenrecord = pd.DataFrame(verzekerdenrecord)
+    df_prestatierecord = pd.DataFrame(prestatierecord)
+    df_commentaarrecord = pd.DataFrame(commentaarrecord)
+    df_sluitrecord = pd.DataFrame(sluitrecord)
+
+    # check parsing TODO: add proper logging
+    check_parsing(df_voorlooprecord, df_verzekerdenrecord, df_prestatierecord, df_commentaarrecord, df_sluitrecord)
+
+    # clean data
+    df_merged = merge_data(df_verzekerdenrecord, df_prestatierecord)
+    df = clean_data(df_merged)
+
+
+    # TODO: if no errors display ✔️, otherwise display ✖️ for expander icon
     with st.expander("**C- en T-codes mogen niet op dezelfde behandeldatum voorkomen**", expanded=False, icon="✔️"):
-        st.write(display_format(find_errors_c_t(df)))
+        df_filtered = (
+            df.groupby(["BSN", "Datum prestatie"])
+            .filter(
+                lambda group: group["Prestatiecode"].str.contains("C").any() 
+                                and group["Prestatiecode"].str.contains("T").any()
+            )
+        )
 
-    with st.expander("**A10- en H-codes mogen niet samen op dezelfde behandeldatum voorkomen**", expanded=False, icon="✔️"):
-        st.write(display_format(find_errors_a10_h(df)))
+        df_filtered = df_filtered[df_filtered["Prestatiecode"].str.contains("C|T")]
+        st.dataframe(display(df_filtered))
 
-    with st.expander("**X21 mag niet gedeclareerd worden voor patiënten jonger dan 18 jaar**", expanded=False, icon="✔️"):
-        st.write(display_format(find_errors_x21_age(df)))
+    # with st.expander("**A10- en H-codes mogen niet samen op dezelfde behandeldatum voorkomen**", expanded=False, icon="✔️"):
+    #     st.write(display_format(find_errors_a10_h(df)))
 
-    with st.expander("**G72 mag niet gedeclareerd worden**", expanded=False, icon="✔️"):
-        st.write(display_format(find_errors_g72(df))) 
+    # with st.expander("**X21 mag niet gedeclareerd worden voor patiënten jonger dan 18 jaar**", expanded=False, icon="✔️"):
+    #     st.write(display_format(find_errors_x21_age(df)))
+
+    # with st.expander("**G72 mag niet gedeclareerd worden**", expanded=False, icon="✔️"):
+    #     st.write(display_format(find_errors_g72(df))) 
 else:
     st.markdown("#### Welkom bij Valident!")
-    st.markdown("Upload een Excel-bestand via de linkerzijbalk om alle \
-                ongeldige declaraties te vinden.")
-    st.markdown("Na het uploaden worden de gegevens gecontroleerd en \
-                 krijg je een overzicht van de foutieve codecombinaties..")
+    st.markdown("Upload een Excel-bestand via de linkerzijbalk om alle ongeldige declaraties te vinden.")
+    st.markdown("Na het uploaden worden de gegevens gecontroleerd en krijg je een overzicht van de foutieve codecombinaties..")
     st.image("imgs/pijl.png", width=150)
