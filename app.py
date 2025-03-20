@@ -88,30 +88,55 @@ if my_upload is not None:
     df_merged = merge_data(df_verzekerdenrecord, df_prestatierecord)
     df = clean_data(df_merged)
 
-
-    # TODO: if no errors display ✔️, otherwise display ✖️ for expander icon
-    with st.expander("**C- en T-codes mogen niet op dezelfde behandeldatum voorkomen**", expanded=False, icon="✔️"):
-        df_filtered = (
+    ### DISPLAY RESULTS
+  
+    # C- en T-codes mogen niet op dezelfde behandeldatum voorkomen
+    df_filter = (
             df.groupby(["BSN", "Datum prestatie"])
             .filter(
                 lambda group: group["Prestatiecode"].str.contains("C").any() 
-                                and group["Prestatiecode"].str.contains("T").any()
-            )
-        )
+                                and group["Prestatiecode"].str.contains("T").any()))
+    df_filter = df_filter[df_filter["Prestatiecode"].str.contains("C|T")]
+    if df_filter.shape[0] > 0:
+        with st.expander("**C- en T-codes mogen niet op dezelfde behandeldatum voorkomen**", expanded=False, icon="✖️"):
+            st.dataframe(display(df_filter))
+    else:
+        with st.expander("**C- en T-codes mogen niet op dezelfde behandeldatum voorkomen**", expanded=False, icon="✔️"):
+            st.dataframe(display(df_filter))
 
-        df_filtered = df_filtered[df_filtered["Prestatiecode"].str.contains("C|T")]
-        st.dataframe(display(df_filtered))
+    # A10- en H-codes mogen niet samen op dezelfde behandeldatum voorkomen
+    df_filter = (
+        df.groupby(["BSN", "Datum prestatie"])
+        .filter(
+            lambda group: group["Prestatiecode"].str.contains("A10").any() 
+                            and group["Prestatiecode"].str.contains("H").any()))
+    df_filter = df_filter[df_filter["Prestatiecode"].str.contains("A10|H")]
+    if df_filter.shape[0] > 0:
+        with st.expander("**A10- en H-codes mogen niet samen op dezelfde behandeldatum voorkomen**", expanded=False, icon="✖️"):
+            st.dataframe(display(df_filter))
+    else:
+        with st.expander("**A10- en H-codes mogen niet samen op dezelfde behandeldatum voorkomen**", expanded=False, icon="✔️"):
+            st.dataframe(display(df_filter))
 
-    # with st.expander("**A10- en H-codes mogen niet samen op dezelfde behandeldatum voorkomen**", expanded=False, icon="✔️"):
-    #     st.write(display_format(find_errors_a10_h(df)))
+    # X21 voor patiënten jonger dan 18 jaar moet machtigingsnummer hebben
+    mask_filter = (
+        (df["Leeftijd"] < 18)
+        & (df["Prestatiecode"] == "X21")
+        & (
+            df["Machtigingsnummer"].isna()            # missing entirely
+            | (df["Machtigingsnummer"] == "")         # empty string
+            | (df["Machtigingsnummer"].str.len() < 5))) # fewer than 5 chars
+    df_filter = df[mask_filter]
+    if df_filter.shape[0] > 0:
+        with st.expander("**X21 voor patiënten jonger dan 18 jaar moet machtigingsnummer hebben**", expanded=False, icon="✖️"):
+            st.dataframe(display(df_filter))
+    else:
+        with st.expander("**X21 voor patiënten jonger dan 18 jaar moet machtigingsnummer hebben**", expanded=False, icon="✔️"):
+            st.dataframe(display(df_filter))
 
-    # with st.expander("**X21 mag niet gedeclareerd worden voor patiënten jonger dan 18 jaar**", expanded=False, icon="✔️"):
-    #     st.write(display_format(find_errors_x21_age(df)))
 
-    # with st.expander("**G72 mag niet gedeclareerd worden**", expanded=False, icon="✔️"):
-    #     st.write(display_format(find_errors_g72(df))) 
 else:
     st.markdown("#### Welkom bij Valident!")
-    st.markdown("Upload een Excel-bestand via de linkerzijbalk om alle ongeldige declaraties te vinden.")
+    st.markdown("Upload een bestand via de linkerzijbalk om alle ongeldige declaraties te vinden.")
     st.markdown("Na het uploaden worden de gegevens gecontroleerd en krijg je een overzicht van de foutieve codecombinaties..")
     st.image("imgs/pijl.png", width=150)
