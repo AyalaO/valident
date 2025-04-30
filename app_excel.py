@@ -199,30 +199,52 @@ if my_upload is not None:
     
     # P045 mag maximal 8x voorkomen voor oner- of boevnkaak op zelfde datum
     mask_filter = (
-    (df["Prestatiecode"] == "P045")
-        & (
-            (df.groupby(["Patientgegevens", "Datum prestatie"])["Gebitselementcode"]
-            .transform(lambda s: (s == "Bovenkaak").sum()) > 8)
-            |
-            (df.groupby(["Patientgegevens", "Datum prestatie"])["Gebitselementcode"]
-            .transform(lambda s: (s == "Onderkaak").sum()) > 8)
-            |
-            (df.groupby(["Patientgegevens", "Datum prestatie"])["Gebitselementcode"]
-            .transform(lambda s: (s.astype(str).str[0].isin(["1", "2"])).sum()) > 8)
-            |
-            (df.groupby(["Patientgegevens", "Datum prestatie"])["Gebitselementcode"]
-            .transform(lambda s: (s.astype(str).str[0].isin(["3", "4"])).sum()) > 8)
-        )
+    # 1) >8 P045→Bovenkaak
+    (df
+     .groupby(["Patientgegevens","Datum prestatie"])["Gebitselementcode"]
+     .transform(lambda s: (
+         (df.loc[s.index, "Prestatiecode"] == "P045")
+         & (s == "Bovenkaak")
+     ).sum())
+     > 8)
+
+    |  # 2) >8 P045→Onderkaak
+    (df
+     .groupby(["Patientgegevens","Datum prestatie"])["Gebitselementcode"]
+     .transform(lambda s: (
+         (df.loc[s.index, "Prestatiecode"] == "P045")
+         & (s == "Onderkaak")
+     ).sum())
+     > 8)
+
+    |  # 3) >8 P045→prefix “1” or “2”
+    (df
+     .groupby(["Patientgegevens","Datum prestatie"])["Gebitselementcode"]
+     .transform(lambda s: (
+         (df.loc[s.index, "Prestatiecode"] == "P045")
+         & s.astype(str).str[0].isin(["1", "2"])
+     ).sum())
+     > 8)
+
+    |  # 4) >8 P045→prefix “3” or “4”
+    (df
+     .groupby(["Patientgegevens","Datum prestatie"])["Gebitselementcode"]
+     .transform(lambda s: (
+         (df.loc[s.index, "Prestatiecode"] == "P045")
+         & s.astype(str).str[0].isin(["3", "4"])
+     ).sum())
+     > 8)
     )
-    df_filter = df[mask_filter]
+
+    df_filter = df[(df["Prestatiecode"] == "P045") & mask_filter]
+
     if df_filter.shape[0] > 0:
-        with st.expander("P045 mag maximal 8x voorkomen voor oner- of boevnkaak op zelfde datum", expanded=False, icon="🔴️"):
+        with st.expander("P045 mag maximal 8x voorkomen voor onder- of bovenkaak op zelfde datum", expanded=False, icon="🔴️"):
             st.dataframe(display(df_filter))
     else:
-        with st.expander("P045 mag maximal 8x voorkomen voor oner- of boevnkaak op zelfde datum", expanded=False, icon="✅"):
+        with st.expander("P045 mag maximal 8x voorkomen voor onder- of bovenkaak op zelfde datum", expanded=False, icon="✅"):
             st.dataframe(display(df_filter))
-    
-    
+
 
     # ### onder 18 jaar #########################################################
     # st.write('**Onder 18 jaar**')

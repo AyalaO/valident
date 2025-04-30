@@ -109,16 +109,16 @@ if my_upload is not None:
 
     # A10- en H-codes mogen niet op dezelfde behandeldatum voorkomen
     df_filter = (
-        df.groupby(["BSN", "Datum prestatie"])
+        df.groupby(["Patientgegevens", "Datum prestatie", "Gebitselementcode"])
         .filter(
             lambda group: group["Prestatiecode"].str.contains("A10").any() 
                             and group["Prestatiecode"].str.contains("H").any()))
     df_filter = df_filter[df_filter["Prestatiecode"].str.contains("A10|H")]
     if df_filter.shape[0] > 0:
-        with st.expander("A10- en H-codes mogen niet op dezelfde behandeldatum voorkomen", expanded=False, icon="🔴️"):
+        with st.expander("A10- en H-codes mogen niet op dezelfde behandeldatum en element voorkomen", expanded=False, icon="🔴️"):
             st.dataframe(display(df_filter))
     else:
-        with st.expander("A10- en H-codes mogen niet op dezelfde behandeldatum voorkomen", expanded=False, icon="✅"):
+        with st.expander("A10- en H-codes mogen niet op dezelfde behandeldatum en element voorkomen", expanded=False, icon="✅"):
             st.dataframe(display(df_filter))
 
     # E02 en C001, C002 of C003 mogen niet op dezelfde behandeldatum voorkomen
@@ -179,19 +179,34 @@ if my_upload is not None:
         with st.expander("V30 mag maximaal 1 keer op dezelfde behandeldatum voorkomen", expanded=False, icon="✅"):
             st.dataframe(display(df_filter))
 
-    # P045 mag maximaal 1 keer op dezelfde behandeldatum voorkomen
+    # V35 mag maximaal 1 keer op dezelfde behandeldatum en element voorkomen
+    mask_filter = (
+    (df["Prestatiecode"] == "V35")
+    & (
+        df.groupby(["BSN", "Datum prestatie", "Gebitselementcode"])["Prestatiecode"]
+          .transform(lambda s: (s == "V35").sum()) > 1
+    ))
+    df_filter = df[mask_filter]
+    if df_filter.shape[0] > 0:
+        with st.expander("V35 mag maximaal 1 keer op dezelfde behandeldatum en element voorkomen", expanded=False, icon="🔴️"):
+            st.dataframe(display(df_filter))
+    else:
+        with st.expander("V35 mag maximaal 1 keer op dezelfde behandeldatum en element voorkomen", expanded=False, icon="✅"):
+            st.dataframe(display(df_filter))
+    
+    # P045 mag maximaal 1 keer op dezelfde behandeldatum en element voorkomen
     mask_filter = (
     (df["Prestatiecode"] == "P045")
     & (
-        df.groupby(["BSN", "Datum prestatie"])["Prestatiecode"]
+        df.groupby(["BSN", "Datum prestatie", "Gebitselementcode"])["Prestatiecode"]
           .transform(lambda s: (s == "P045").sum()) > 1
     ))
     df_filter = df[mask_filter]
     if df_filter.shape[0] > 0:
-        with st.expander("P045 mag maximaal 1 keer op dezelfde behandeldatum voorkomen", expanded=False, icon="🔴️"):
+        with st.expander("P045 mag maximaal 1 keer op dezelfde behandeldatum en element voorkomen", expanded=False, icon="🔴️"):
             st.dataframe(display(df_filter))
     else:
-        with st.expander("P045 mag maximaal 1 keer op dezelfde behandeldatum voorkomen", expanded=False, icon="✅"):
+        with st.expander("P045 mag maximaal 1 keer op dezelfde behandeldatum en elementvoorkomen", expanded=False, icon="✅"):
             st.dataframe(display(df_filter))
     
     # P045 vereist vermelding van elementnummer
@@ -210,21 +225,31 @@ if my_upload is not None:
         with st.expander("P045 vereist vermelding van elementnummer", expanded=False, icon="✅"):
             st.dataframe(display(df_filter))
     
-    # P045 voor zelfde elementnummer moet in zelfde regel weergegeven worden
+
+    # P045 mag maximal 8x voorkomen voor oner- of boevnkaak op zelfde datum
     mask_filter = (
-    (df["Prestatiecode"] == "P045")
-    & (
-        df.groupby(["BSN", "Datum prestatie", "Gebitselementcode"])["Prestatiecode"]
-          .transform(lambda s: (s == "P045").sum()) > 1
-    ))
+        (df["Prestatiecode"] == "P045")
+        & (
+            (df.groupby(["BSN", "Datum prestatie"])["Gebitselementcode"]
+            .transform(lambda s: (s == "Bovenkaak").sum()) > 8)
+            |
+            (df.groupby(["BSN", "Datum prestatie"])["Gebitselementcode"]
+            .transform(lambda s: (s == "Onderkaak").sum()) > 8)
+            |
+            (df.groupby(["BSN", "Datum prestatie"])["Gebitselementcode"]
+            .transform(lambda s: (s.astype(str).str[0].isin(["1", "2"])).sum()) > 8)
+            |
+            (df.groupby(["BSN", "Datum prestatie"])["Gebitselementcode"]
+            .transform(lambda s: (s.astype(str).str[0].isin(["3", "4"])).sum()) > 8)
+        )
+    )
     df_filter = df[mask_filter]
     if df_filter.shape[0] > 0:
-        with st.expander("P045 voor zelfde elementnummer moet in zelfde regel weergegeven worden", expanded=False, icon="🔴️"):
+        with st.expander("P045 mag maximal 8x voorkomen voor oner- of boevnkaak op zelfde datum", expanded=False, icon="🔴️"):
             st.dataframe(display(df_filter))
     else:
-        with st.expander("P045 voor zelfde elementnummer moet in zelfde regel weergegeven worden", expanded=False, icon="✅"):
+        with st.expander("P045 mag maximal 8x voorkomen voor oner- of boevnkaak op zelfde datum", expanded=False, icon="✅"):
             st.dataframe(display(df_filter))
-    
     
 
     ### onder 18 jaar #########################################################
@@ -244,24 +269,6 @@ if my_upload is not None:
             st.dataframe(display(df_filter))
     else:
         with st.expander("X21 voor patiënten jonger dan 18 jaar vereist machtigingsnummer", expanded=False, icon="✅"):
-            st.dataframe(display(df_filter))
-
-    # H35 voor patiënten jonger dan 18 jaar vereist machtigingsnummer bij VGZ
-    mask_filter = (
-    (df["Prestatiecode"] == "H35") 
-    & (df["Leeftijd"] < 18) 
-    & (df["Verzekering"].str.contains("VGZ", na=False))
-    & (
-        df["Machtigingsnummer"].isna()               # missing 
-        | (df["Machtigingsnummer"] == "")            # empty string
-        | (df["Machtigingsnummer"].str.len() < 5)    # fewer than 5 characters
-    ))
-    df_filter = df[mask_filter]
-    if df_filter.shape[0] > 0:
-        with st.expander("H35 voor patiënten jonger dan 18 jaar vereist machtigingsnummer bij VGZ", expanded=False, icon="🔴️"):
-            st.dataframe(display(df_filter))
-    else:
-        with st.expander("H35 voor patiënten jonger dan 18 jaar vereist machtigingsnummer bij VGZ", expanded=False, icon="✅"):
             st.dataframe(display(df_filter))
     
     # G-codes voor patiënten jonger dan 18 jaar vereist machtigingsnummer bij VGZ
