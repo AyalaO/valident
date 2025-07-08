@@ -28,7 +28,9 @@ def clean_data(df):
          'Datum', 
          'code', 
          'Elementen', 
-         'Honorarium']]
+         'Honorarium',
+         'Techniek',
+         'bedrag']]
 
     # rename columns to match with mz301 as much as possible
     df = df.rename(columns={'GeboorteDatum': 'Geboortedatum',
@@ -36,7 +38,7 @@ def clean_data(df):
                             'Datum': 'Datum prestatie',
                             'code': 'Prestatiecode',
                             'Elementen': 'Gebitselementcode',
-                            'Honorarium': 'Tarief prestatie',
+                            'bedrag': 'Totaal Bedrag',
                             'PatientAchterNaam': 'Achternaam'
                             })
 

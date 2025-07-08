@@ -17,7 +17,9 @@ def display(df):
                     'Datum prestatie',
                     'Prestatiecode',
                     'Gebitselementcode',
-                    'Tarief prestatie',
+                    'Techniek',
+                    'Honorarium',
+                    'Totaal Bedrag',
                     #'Aantal', # niet beschikbaar in excel
                     #'Declaratiebedrag', # # niet beschikbaar in excel
                     #'Verzekering', # niet beschikbaar in excel
@@ -197,7 +199,7 @@ if my_upload is not None:
         with st.expander("P045 vereist vermelding van elementnummer", expanded=False, icon="✅"):
             st.dataframe(display(df_filter))
     
-    # P045 mag maximal 8x voorkomen voor oner- of boevnkaak op zelfde datum
+    # P045 mag maximal 8x voorkomen voor oner- of bovenkaak op zelfde datum
     mask_filter = (
     # 1) >8 P045→Bovenkaak
     (df
@@ -243,6 +245,67 @@ if my_upload is not None:
             st.dataframe(display(df_filter))
     else:
         with st.expander("P045 mag maximal 8x voorkomen voor onder- of bovenkaak op zelfde datum", expanded=False, icon="✅"):
+            st.dataframe(display(df_filter))
+
+    # C022 mag maximaal 4 keer op dezelfde behandeldatum voorkomen
+    mask_filter = (
+    (df["Prestatiecode"] == "C022")
+    & (
+        df.groupby(["Patientgegevens", "Datum prestatie"])["Prestatiecode"]
+          .transform(lambda s: (s == "C022").sum()) > 4
+    ))
+    df_filter = df[mask_filter]
+    if df_filter.shape[0] > 0:
+        with st.expander("C022 mag maximaal 4 keer op dezelfde behandeldatum voorkomen", expanded=False, icon="🔴️"):
+            st.dataframe(display(df_filter))
+    else:
+        with st.expander("C022 mag maximaal 4 keer op dezelfde behandeldatum voorkomen", expanded=False, icon="✅"):
+            st.dataframe(display(df_filter))
+
+    # J042 en J043 mag niet op dezelfde behandeldatum voorkomen met R-codes
+    df_filter = (
+        df.groupby(["Patientgegevens", "Datum prestatie"])
+        .filter(
+            lambda group: (group["Prestatiecode"].isin(["J042", "J043"]).any()
+            and group["Prestatiecode"].str.contains("R", na=False).any())
+        )
+    )
+    df_filter = df_filter[df_filter["Prestatiecode"].str.contains("J042|J043|R", na=False)]
+    if df_filter.shape[0] > 0:
+        with st.expander("J042 en J043 mag niet op dezelfde behandeldatum voorkomen met R-codes", expanded=False, icon="🔴️"):
+            st.dataframe(display(df_filter))
+    else:
+        with st.expander("J042 en J043 mag niet op dezelfde behandeldatum voorkomen met R-codes", expanded=False, icon="✅"):
+            st.dataframe(display(df_filter))
+
+    # J042 en J043 mag niet op dezelfde behandeldatum voorkomen met J040 of J041
+    df_filter = (
+    df.groupby(["Patientgegevens", "Datum prestatie"])
+      .filter(
+          lambda group: (group["Prestatiecode"].isin(["J042", "J043"]).any()
+           and group["Prestatiecode"].isin(["J040", "J041"]).any()
+      )))
+    df_filter = df_filter[df_filter["Prestatiecode"].str.contains("J042|J043|J040|J041")]
+    if df_filter.shape[0] > 0:
+        with st.expander("J042 en J043 mag niet op dezelfde behandeldatum voorkomen met J040 of J041", expanded=False, icon="🔴️"):
+            st.dataframe(display(df_filter))
+    else:
+        with st.expander("J042 en J043 mag niet op dezelfde behandeldatum voorkomen met J040 of J041", expanded=False, icon="✅"):
+            st.dataframe(display(df_filter))        
+        
+    # T102 mag maximaal 1 keer op dezelfde behandeldatum voorkomen
+    mask_filter = (
+    (df["Prestatiecode"] == "T102")
+    & (
+        df.groupby(["Patientgegevens", "Datum prestatie"])["Prestatiecode"]
+          .transform(lambda s: (s == "T102").sum()) > 1
+    ))
+    df_filter = df[mask_filter]
+    if df_filter.shape[0] > 0:
+        with st.expander("T102 mag maximaal 1 keer op dezelfde behandeldatum voorkomen", expanded=False, icon="🔴️"):
+            st.dataframe(display(df_filter))
+    else:
+        with st.expander("T102 mag maximaal 1 keer op dezelfde behandeldatum voorkomen", expanded=False, icon="✅"):
             st.dataframe(display(df_filter))
 
 
@@ -490,6 +553,19 @@ if my_upload is not None:
     #     with st.expander("J104 maximale techniekkosten van 93 euro", expanded=False, icon="✅"):
     #         st.dataframe(display(df_filter))
   
+    ### overige checks ############################################
+    st.write('**Overige Checks**')
+    # Negatieve bedragen
+    df_filter = df[(df['Totaal Bedrag']<0) | 
+                   (df['Techniek']<0) | 
+                   (df['Honorarium']<0) ]
+    if df_filter.shape[0] > 0:
+        with st.expander("Negatief bedrag", expanded=False, icon="🔴️"):
+            st.dataframe(display(df_filter))
+    else:
+        with st.expander("Negatief bedrag", expanded=False, icon="✅"):
+            st.dataframe(display(df_filter))
+
 
 else:
     st.markdown("#### Welkom bij Valident!")
