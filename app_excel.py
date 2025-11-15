@@ -5,6 +5,7 @@ from datetime import datetime
 from clean_data_excel import (
                     clean_data
 )
+from helpers import require_password
 
 def display(df):
     """
@@ -37,6 +38,9 @@ def display(df):
             df_display[col] = df_display[col].dt.strftime('%d-%m-%Y')
     
     return df_display
+
+
+require_password()
 
 # set-up sidebar 
 st.markdown("""
